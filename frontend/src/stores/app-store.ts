@@ -121,6 +121,12 @@ interface AppState {
   referenceVideoUnitsRevision: number;
   invalidateReferenceVideoUnits: () => void;
 
+  // 「一键成片」失效信号：与 referenceVideoUnitsRevision 分开——它只影响 episode 级
+  // 合成产物的预览卡片，不该在每次 unit 列表变化时跟着重拉，也不该让合成完成误刷新
+  // 整份 unit 列表。
+  referenceVideoComposeRevision: number;
+  invalidateReferenceVideoCompose: () => void;
+
   // Entity-scoped invalidation signal for cache-busted asset URLs
   entityRevisions: Record<string, number>;
   invalidateEntities: (keys: string[]) => void;
@@ -283,6 +289,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   referenceVideoUnitsRevision: 0,
   invalidateReferenceVideoUnits: () =>
     set((s) => ({ referenceVideoUnitsRevision: s.referenceVideoUnitsRevision + 1 })),
+
+  referenceVideoComposeRevision: 0,
+  invalidateReferenceVideoCompose: () =>
+    set((s) => ({ referenceVideoComposeRevision: s.referenceVideoComposeRevision + 1 })),
 
   entityRevisions: {},
   invalidateEntities: (keys) =>

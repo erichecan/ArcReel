@@ -168,6 +168,20 @@ export async function enqueueNarration(
   return { taskIds: [res.task_id], deduped: res.deduped };
 }
 
+/** 一键成片：按 episode 粒度占用（resourceId 是 episode 号的字符串形式）。 */
+export async function enqueueReferenceVideoCompose(
+  projectName: string,
+  episode: number,
+): Promise<EnqueueResult> {
+  const res = await submit(
+    [markResource(projectName, "reference_video_compose", String(episode), "reference_video_compose")],
+    () => API.composeReferenceVideoEpisode(projectName, episode),
+    oneTaskId,
+  );
+  notifyEnqueued(res.deduped, i18n.t("dashboard:reference_compose_task_submitted_toast"));
+  return { taskIds: [res.task_id], deduped: res.deduped };
+}
+
 export async function enqueueEpisodeNarration(
   projectName: string,
   scriptFile: string,

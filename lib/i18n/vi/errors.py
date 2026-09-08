@@ -323,6 +323,8 @@ MESSAGES = {
     "ref_unit_ids_length_mismatch": "Số lượng unit_ids không khớp với các đơn vị hiện có",
     "ref_duplicate_unit_ids": "unit_ids bị trùng lặp",
     "ref_unit_ids_mismatch": "unit_ids không khớp với các đơn vị hiện có",
+    "ref_compose_no_units": "Tập này chưa có đơn vị video nào, không thể ghép thành phẩm",
+    "ref_compose_units_not_ready": "Các đơn vị sau chưa có video, không thể ghép thành phẩm: {ids}",
     "ref_script_missing": "Tệp kịch bản gắn với tập này không tồn tại",
     "ref_script_rebound": "Liên kết kịch bản của tập này đã thay đổi, vui lòng thử lại",
     "ref_ad_reference_skipped": "'{name}' ({type}) không có ảnh tham chiếu khả dụng, đã bỏ qua tham chiếu này trong lần tạo này",

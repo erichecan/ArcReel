@@ -325,6 +325,8 @@ MESSAGES = {
     "ref_unit_ids_length_mismatch": "unit_ids count does not match existing units",
     "ref_duplicate_unit_ids": "unit_ids contains duplicates",
     "ref_unit_ids_mismatch": "unit_ids do not match existing units",
+    "ref_compose_no_units": "This episode has no video units yet, cannot compose",
+    "ref_compose_units_not_ready": "These units have no generated clip yet, cannot compose: {ids}",
     "ref_script_missing": "The script file bound to this episode does not exist",
     "ref_script_rebound": "This episode's script binding changed, please retry",
     "ref_ad_reference_skipped": "'{name}' ({type}) has no usable reference image and was skipped for this generation",

@@ -3518,6 +3518,22 @@ async def _execute_image_edit_task_proxy(
     return await execute_image_edit_task(project_name, resource_id, payload, user_id=user_id, task_id=task_id)
 
 
+async def _execute_reference_video_compose_task_proxy(
+    project_name: str,
+    resource_id: str,
+    payload: dict[str, Any],
+    *,
+    user_id: str,
+    task_id: str | None = None,
+) -> dict[str, Any]:
+    """Lazy proxy to avoid circular import: reference_video_compose imports from this module."""
+    from server.services.reference_video_compose import execute_reference_video_compose_task
+
+    return await execute_reference_video_compose_task(
+        project_name, resource_id, payload, user_id=user_id, task_id=task_id
+    )
+
+
 _TASK_EXECUTORS = {
     "storyboard": execute_storyboard_task,
     "video": execute_video_task,
@@ -3530,6 +3546,7 @@ _TASK_EXECUTORS = {
     "grid": execute_grid_task,
     "reference_video": _execute_reference_video_task_proxy,
     "image_edit": _execute_image_edit_task_proxy,
+    "reference_video_compose": _execute_reference_video_compose_task_proxy,
     DERIVATIVE_TASK_TYPE: _execute_character_derivative_task_proxy,
 }
 

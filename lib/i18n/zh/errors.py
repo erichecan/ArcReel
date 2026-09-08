@@ -299,6 +299,8 @@ MESSAGES = {
     "ref_unit_ids_length_mismatch": "unit_ids 数量与现有单元不一致",
     "ref_duplicate_unit_ids": "unit_ids 存在重复",
     "ref_unit_ids_mismatch": "unit_ids 与现有单元不匹配",
+    "ref_compose_no_units": "该集还没有视频单元，无法一键成片",
+    "ref_compose_units_not_ready": "以下单元还没有生成成片，无法一键成片：{ids}",
     "ref_script_missing": "该集绑定的脚本文件不存在",
     "ref_script_rebound": "该集脚本绑定已变更，请重试",
     "ref_ad_reference_skipped": "「{name}」（{type}）缺少可用参考图，本次生成已跳过该参考",

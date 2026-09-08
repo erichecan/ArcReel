@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Clock,
   FileText,
+  Film,
   Loader2,
+  Plus,
   Save,
   Scissors,
   Sparkles,
@@ -13,12 +17,14 @@ import {
 import { UnitList } from "./UnitList";
 import { UnitRail } from "./UnitRail";
 import { UnitPreviewPanel } from "./UnitPreviewPanel";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ReferenceVideoCard } from "./ReferenceVideoCard";
 import { ScriptPreviewPanel } from "./ScriptPreviewPanel";
 import { ReferenceScriptOverviewModal } from "./ReferenceScriptOverviewModal";
 import { deriveUnitStatus } from "./unit-status";
 import { EpisodeHeader } from "./EpisodeHeader";
 import { ReferenceDurationConfirmDialog } from "./ReferenceDurationConfirmDialog";
+import { EpisodeComposePanel } from "./EpisodeComposePanel";
 import { ReferenceBatchAdmissionDialog } from "./ReferenceBatchAdmissionDialog";
 import { referenceBatchOutcome } from "./batch-outcome";
 import { NarrationDeliveryChoice } from "@/components/shared/NarrationDeliveryChoice";
@@ -29,6 +35,7 @@ import { API } from "@/api";
 import {
   enqueueNarration,
   enqueueReferenceVideoBatch,
+  enqueueReferenceVideoCompose,
   enqueueReferenceVideoUnit,
 } from "@/actions/generation";
 import {
@@ -178,6 +185,8 @@ export function ReferenceVideoCanvas({
   const loadUnits = useReferenceVideoStore((s) => s.loadUnits);
   const addUnit = useReferenceVideoStore((s) => s.addUnit);
   const patchUnit = useReferenceVideoStore((s) => s.patchUnit);
+  const deleteUnitAction = useReferenceVideoStore((s) => s.deleteUnit);
+  const reorderUnitsAction = useReferenceVideoStore((s) => s.reorderUnits);
   const select = useReferenceVideoStore((s) => s.select);
 
   const units =
@@ -340,6 +349,46 @@ export function ReferenceVideoCanvas({
       toastError(e);
     }
   }, [addUnit, projectName, episode]);
+
+  // 相对某个 unit 插入新单元：插到前面时锚点是它的前一个 unit（首位则插到最前），
+  // 插到后面时锚点就是它自己。新单元落盘位置须和这两条锚点规则完全对应。
+  const handleInsertUnit = useCallback(
+    async (anchorUnitId: string, position: "before" | "after") => {
+      const ids = units.map((u) => u.unit_id);
+      const index = ids.indexOf(anchorUnitId);
+      if (index === -1) return;
+      try {
+        if (position === "after") {
+          await addUnit(projectName, episode, { prompt: "", after_id: anchorUnitId });
+        } else if (index === 0) {
+          await addUnit(projectName, episode, { prompt: "", insert_at_start: true });
+        } else {
+          await addUnit(projectName, episode, { prompt: "", after_id: ids[index - 1] });
+        }
+      } catch (e) {
+        toastError(e);
+      }
+    },
+    [units, addUnit, projectName, episode],
+  );
+
+  // 前移/后移一位并整列重发——同 StudioCanvasRouter.handleMoveShot 的排序契约；
+  // 仅调整位置，不占用生成/上传/恢复那套写入互斥（排序不触碰单元内容或资产）。
+  const handleMoveUnit = useCallback(
+    async (unitId: string, direction: "earlier" | "later") => {
+      const ids = units.map((u) => u.unit_id);
+      const index = ids.indexOf(unitId);
+      const target = direction === "earlier" ? index - 1 : index + 1;
+      if (index === -1 || target < 0 || target >= ids.length) return;
+      [ids[index], ids[target]] = [ids[target], ids[index]];
+      try {
+        await reorderUnitsAction(projectName, episode, ids);
+      } catch (e) {
+        toastError(e, (msg) => t("reference_unit_move_failed", { message: msg }));
+      }
+    },
+    [units, reorderUnitsAction, projectName, episode, t],
+  );
 
   const [stackTab, setStackTab] = useState<"editor" | "preview">("editor");
 
@@ -512,6 +561,41 @@ export function ReferenceVideoCanvas({
     [loadUnits, projectName, episode],
   );
 
+  // 删除确认弹窗：打开时刻与提交时刻各复核一次占用态（同 handleUploadVideo 的窗口问题——
+  // 弹窗停留期间该 unit 可能被生成、上传等其他写入路径占用）。
+  const [deletingUnitId, setDeletingUnitId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleRequestDeleteUnit = useCallback(
+    (unitId: string) => {
+      if (isUnitLocked(unitId)) {
+        useAppStore.getState().pushToast(t("reference_generate_busy"), "error");
+        return;
+      }
+      setDeletingUnitId(unitId);
+    },
+    [isUnitLocked, t],
+  );
+
+  const handleConfirmDeleteUnit = useCallback(async () => {
+    if (!deletingUnitId) return;
+    if (isUnitLocked(deletingUnitId)) {
+      useAppStore.getState().pushToast(t("reference_generate_busy"), "error");
+      setDeletingUnitId(null);
+      return;
+    }
+    setDeleteLoading(true);
+    try {
+      await deleteUnitAction(projectName, episode, deletingUnitId);
+      useAppStore.getState().pushToast(t("common:deleted"), "success");
+    } catch (e) {
+      toastError(e, (msg) => t("reference_unit_delete_failed", { message: msg }));
+    } finally {
+      setDeleteLoading(false);
+      setDeletingUnitId(null);
+    }
+  }, [deletingUnitId, isUnitLocked, deleteUnitAction, projectName, episode, t]);
+
   const handleGenerateNarration = useCallback(
     async (unitId: string) => {
       const scriptFile = useProjectsStore
@@ -584,6 +668,25 @@ export function ReferenceVideoCanvas({
     }
     await runBatch(targets);
   }, [batchTargets, canEnqueueBatchUnit, runBatch, t]);
+
+  // 一键成片：全有或全无——一个 unit 缺成片就不让点，服务端会用同一口径再拒一次
+  // （渲染窗口内该 unit 也可能被重新生成而失效），按钮禁用只是省一次没必要的请求。
+  const composeBusyIds = useActiveResourceIds("reference_video_compose", projectName);
+  const composeBusy = composeBusyIds.has(String(episode));
+  const composeReady = units.length > 0 && units.every((u) => Boolean(u.generated_assets.video_clip));
+  const composeRevision = useAppStore((s) => s.referenceVideoComposeRevision);
+
+  const handleCompose = useCallback(async () => {
+    if (isResourceBusy("reference_video_compose", projectName, String(episode))) {
+      useAppStore.getState().pushToast(t("reference_generate_busy"), "error");
+      return;
+    }
+    try {
+      await enqueueReferenceVideoCompose(projectName, episode);
+    } catch (e) {
+      toastError(e, (msg) => t("reference_compose_failed", { error: msg }));
+    }
+  }, [projectName, episode, t]);
 
   /**
    * 聚合确认后重发同一端点完成入队：档位按 tier 摊回各 unit，目标集合仍是本轮全部
@@ -965,9 +1068,28 @@ export function ReferenceVideoCanvas({
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{t("reference_batch_generate")}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => void handleCompose()}
+              disabled={!composeReady || composeBusy}
+              title={!composeReady ? t("reference_compose_not_ready") : undefined}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-[var(--color-hairline)] bg-[oklch(0.22_0.011_265_/_0.5)] px-2.5 py-1 text-[11.5px] text-[var(--color-text-2)] transition-colors hover:bg-[oklch(0.26_0.013_265_/_0.7)] hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Film className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{t("reference_compose_cta")}</span>
+            </button>
           </>
         )}
       </div>
+
+      {tab === "units" && (
+        <EpisodeComposePanel
+          projectName={projectName}
+          episode={episode}
+          busy={composeBusy}
+          revision={composeRevision}
+        />
+      )}
 
       {tab === "units" && voiceLegacyNotice.count > 0 && (
         <VoiceLegacyBanner
@@ -1094,6 +1216,44 @@ export function ReferenceVideoCanvas({
                         {selectedIndex + 1} / {units.length}
                       </span>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => void handleInsertUnit(selected.unit_id, "before")}
+                      title={t("reference_unit_insert_before")}
+                      aria-label={t("reference_unit_insert_before")}
+                      className="focus-ring inline-grid h-6 w-6 place-items-center rounded border border-[var(--color-hairline)] bg-[oklch(0.22_0.011_265_/_0.5)] text-[var(--color-text-2)] hover:bg-[oklch(0.26_0.013_265_/_0.7)]"
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleMoveUnit(selected.unit_id, "earlier")}
+                      disabled={selectedIndex <= 0}
+                      title={t("reference_unit_move_earlier")}
+                      aria-label={t("reference_unit_move_earlier")}
+                      className="focus-ring inline-grid h-6 w-6 place-items-center rounded border border-[var(--color-hairline)] bg-[oklch(0.22_0.011_265_/_0.5)] text-[var(--color-text-2)] hover:bg-[oklch(0.26_0.013_265_/_0.7)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleMoveUnit(selected.unit_id, "later")}
+                      disabled={selectedIndex < 0 || selectedIndex >= units.length - 1}
+                      title={t("reference_unit_move_later")}
+                      aria-label={t("reference_unit_move_later")}
+                      className="focus-ring inline-grid h-6 w-6 place-items-center rounded border border-[var(--color-hairline)] bg-[oklch(0.22_0.011_265_/_0.5)] text-[var(--color-text-2)] hover:bg-[oklch(0.26_0.013_265_/_0.7)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleInsertUnit(selected.unit_id, "after")}
+                      title={t("reference_unit_insert_after")}
+                      aria-label={t("reference_unit_insert_after")}
+                      className="focus-ring inline-grid h-6 w-6 place-items-center rounded border border-[var(--color-hairline)] bg-[oklch(0.22_0.011_265_/_0.5)] text-[var(--color-text-2)] hover:bg-[oklch(0.26_0.013_265_/_0.7)]"
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
                     <button
                       type="button"
                       onClick={goPrev}
@@ -1327,6 +1487,7 @@ export function ReferenceVideoCanvas({
                           onRestoringChange={handleRestoringChange}
                           checkBusy={isUnitLocked}
                           onRestored={handleUnitsRefresh}
+                          onDelete={handleRequestDeleteUnit}
                         />
                       </div>
                     )}
@@ -1363,6 +1524,7 @@ export function ReferenceVideoCanvas({
                   onRestoringChange={handleRestoringChange}
                   checkBusy={isUnitLocked}
                   onRestored={handleUnitsRefresh}
+                  onDelete={handleRequestDeleteUnit}
                 />
               </div>
             )}
@@ -1409,6 +1571,22 @@ export function ReferenceVideoCanvas({
         episodeTitle={episodeTitle ?? `E${episode}`}
         units={units}
         lookup={mentionLookup}
+      />
+      <ConfirmDialog
+        open={!!deletingUnitId}
+        tone="danger"
+        title={t("reference_unit_delete_title")}
+        description={
+          deletingUnitId ? t("reference_unit_delete_confirm", { id: deletingUnitId }) : null
+        }
+        confirmLabel={t("reference_unit_delete_title")}
+        loadingLabel={t("reference_unit_deleting")}
+        cancelLabel={t("common:cancel")}
+        loading={deleteLoading}
+        onCancel={() => {
+          if (!deleteLoading) setDeletingUnitId(null);
+        }}
+        onConfirm={handleConfirmDeleteUnit}
       />
     </div>
   );

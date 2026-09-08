@@ -241,7 +241,10 @@ class CapacityTable:
             )
             for pid, meta in PROVIDER_REGISTRY.items()
         }
-        return cls(_limits=limits, _defaults={"image": image_max, "video": video_max, "audio": audio_max, "text": 1})
+        return cls(
+            _limits=limits,
+            _defaults={"image": image_max, "video": video_max, "audio": audio_max, "text": 1, "render": 1},
+        )
 
     @classmethod
     async def from_db(cls) -> CapacityTable:
@@ -292,7 +295,13 @@ class CapacityTable:
         logger.info("从 DB 加载供应商容量表: %s", limits)
         return cls(
             _limits=limits,
-            _defaults={"image": default_image, "video": default_video, "audio": default_audio, "text": 1},
+            _defaults={
+                "image": default_image,
+                "video": default_video,
+                "audio": default_audio,
+                "text": 1,
+                "render": 1,
+            },
         )
 
 
@@ -431,10 +440,15 @@ async def _extract_provider(task: dict[str, Any]) -> str:
         payload = {**payload, "script_file": task["script_file"]}
     # 以 media lane 区分 video / audio / image：reference_video 等 task_type 同属 video lane。
     is_text = task.get("media_type") == "text"
+    is_render = task.get("media_type") == "render"
     is_video = task.get("media_type") == "video" or task.get("task_type") in ("video", "reference_video")
     is_audio = task.get("media_type") == "audio" or task.get("task_type") == "tts"
     if is_text:
         return "text"
+    # render（如「一键成片」的 ffmpeg 拼接）不调用任何 AI 供应商，不走 provider 分桶——
+    # 与 text 同样的哨兵套路，落到 CapacityTable._defaults["render"] 的全局固定并发。
+    if is_render:
+        return "render"
 
     # 整体兜底：含项目加载（队列里可能残留指向已删除/不可读项目的任务，load_project 会抛
     # FileNotFoundError）在内的任何失败都回退 DEFAULT_PROVIDER，绝不冒泡阻断认领循环（见 docstring）。
@@ -495,7 +509,7 @@ class GenerationWorker:
         slots: SlotTable | None = None,
         provider_projection: ProviderProjection = _extract_provider,
         executor: TaskExecutor = _execute_task,
-        lanes: tuple[str, ...] = ("image", "video", "audio", "text"),
+        lanes: tuple[str, ...] = ("image", "video", "audio", "text", "render"),
     ):
         self.queue = queue or get_generation_queue()
         # 认领期与执行期共用的 provider 投影：限流按它的结果路由到对应容量桶。

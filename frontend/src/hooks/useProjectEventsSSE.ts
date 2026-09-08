@@ -343,6 +343,15 @@ export function useProjectEventsSSE(projectName?: string | null): void {
           useAppStore.getState().invalidateReferenceVideoUnits();
         }
 
+        // 「一键成片」完成：独立信号，不跟 unit 列表混用（见 app-store 里的注释）。
+        if (
+          taskChanges.some(
+            (c) => c.action === "task_succeeded" && c.task_type === "reference_video_compose",
+          )
+        ) {
+          useAppStore.getState().invalidateReferenceVideoCompose();
+        }
+
         // 每个批次都重拉，纯任务终态批次也不例外：后端每次广播都会把项目快照 rebase
         // 到最新，与之并发的文件变更来不及被扫描 diff 出来就失去基线；refreshProject
         // 是这类漏广播的兜底，不能因为「本批次只有任务事件」就跳过。

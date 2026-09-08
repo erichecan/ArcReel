@@ -9,6 +9,10 @@ interface AddUnitPayload {
   duration_seconds?: number;
   transition_to_next?: TransitionType;
   note?: string | null;
+  /** 插入到该单元之后；省略且 `insert_at_start` 为假时追加到末尾。 */
+  after_id?: string;
+  /** 插入到列表最前面，优先于 `after_id`。 */
+  insert_at_start?: boolean;
 }
 
 interface PatchUnitPayload {
@@ -90,8 +94,21 @@ export const useReferenceVideoStore = create<ReferenceVideoStore>((set) => ({
     set((s) => {
       const key = referenceVideoCacheKey(projectName, episode);
       const list = s.unitsByEpisode[key] ?? [];
+      // 插入位置须与后端落盘的位置一致：追加(默认)/插到最前/插到某单元之后。
+      let next: ReferenceVideoUnit[];
+      if (payload.insert_at_start) {
+        next = [unit, ...list];
+      } else if (payload.after_id) {
+        const anchorIndex = list.findIndex((u) => u.unit_id === payload.after_id);
+        next =
+          anchorIndex === -1
+            ? [...list, unit]
+            : [...list.slice(0, anchorIndex + 1), unit, ...list.slice(anchorIndex + 1)];
+      } else {
+        next = [...list, unit];
+      }
       return {
-        unitsByEpisode: { ...s.unitsByEpisode, [key]: [...list, unit] },
+        unitsByEpisode: { ...s.unitsByEpisode, [key]: next },
         selectedUnitId: unit.unit_id,
       };
     });

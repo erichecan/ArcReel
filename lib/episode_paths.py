@@ -106,3 +106,12 @@ def episode_script_filename(episode: int) -> str:
 def episode_script_relpath(episode: int) -> str:
     """该集剧本相对项目根的默认路径 ``scripts/episode_N.json``。"""
     return f"scripts/{episode_script_filename(episode)}"
+
+
+def episode_final_cut_relpath(episode: int) -> str:
+    """该集"一键成片"最终合成产物相对项目根的路径 ``presentations/episode_N/final_cut.mp4``。
+
+    按 episode 粒度而非 resource_id 粒度，不进 ``lib/resource_paths.py`` 的
+    ``ResourcePattern``（后者只建模「每个 resource_id 一个文件」的形状）。
+    """
+    return f"presentations/episode_{episode}/final_cut.mp4"

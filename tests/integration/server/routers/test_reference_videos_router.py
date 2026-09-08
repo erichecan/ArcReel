@@ -109,6 +109,56 @@ def test_add_unit_creates_minimal_entry(reference_videos_client: TestClient):
     assert payload["unit"]["text"] == "镜头1：@张三 推门"
 
 
+def test_add_unit_after_id_inserts_between_existing_units(reference_videos_client: TestClient):
+    first = reference_videos_client.post(
+        "/api/v1/projects/demo/reference-videos/episodes/1/units",
+        json={"prompt": "第一条", "duration_seconds": 3},
+    ).json()["unit"]
+    second = reference_videos_client.post(
+        "/api/v1/projects/demo/reference-videos/episodes/1/units",
+        json={"prompt": "第二条", "duration_seconds": 3},
+    ).json()["unit"]
+
+    resp = reference_videos_client.post(
+        "/api/v1/projects/demo/reference-videos/episodes/1/units",
+        json={"prompt": "插到中间", "duration_seconds": 3, "after_id": first["unit_id"]},
+    )
+    assert resp.status_code == 201, resp.text
+    inserted = resp.json()["unit"]
+
+    units = reference_videos_client.get("/api/v1/projects/demo/reference-videos/episodes/1/units").json()["units"]
+    assert [u["unit_id"] for u in units] == [first["unit_id"], inserted["unit_id"], second["unit_id"]]
+
+
+def test_add_unit_insert_at_start_prepends(reference_videos_client: TestClient):
+    first = reference_videos_client.post(
+        "/api/v1/projects/demo/reference-videos/episodes/1/units",
+        json={"prompt": "第一条", "duration_seconds": 3},
+    ).json()["unit"]
+
+    resp = reference_videos_client.post(
+        "/api/v1/projects/demo/reference-videos/episodes/1/units",
+        json={"prompt": "插到最前", "duration_seconds": 3, "insert_at_start": True},
+    )
+    assert resp.status_code == 201, resp.text
+    inserted = resp.json()["unit"]
+
+    units = reference_videos_client.get("/api/v1/projects/demo/reference-videos/episodes/1/units").json()["units"]
+    assert [u["unit_id"] for u in units] == [inserted["unit_id"], first["unit_id"]]
+
+
+def test_add_unit_unknown_after_id_returns_404(reference_videos_client: TestClient):
+    reference_videos_client.post(
+        "/api/v1/projects/demo/reference-videos/episodes/1/units",
+        json={"prompt": "第一条", "duration_seconds": 3},
+    )
+    resp = reference_videos_client.post(
+        "/api/v1/projects/demo/reference-videos/episodes/1/units",
+        json={"prompt": "插到不存在的单元后", "duration_seconds": 3, "after_id": "E1U999"},
+    )
+    assert resp.status_code == 404, resp.text
+
+
 def test_add_unit_refuses_a_blank_body(reference_videos_client: TestClient):
     """正文是单元的唯一内容真相：空正文的单元不可执行，创建时即以 needs_replan 拒绝。"""
     response = reference_videos_client.post(
@@ -2123,3 +2173,101 @@ def test_generate_batch_reports_a_falsy_video_units_container(
     assert enqueued == []
     codes = {item["unit_id"]: [problem["code"] for problem in item["problems"]] for item in body["units"]}
     assert codes["video_units"] == ["generation_unit_request_invalid"]
+
+
+# ---------------------------------------------------------------------------
+# 一键成片：POST /episodes/{episode}/compose
+# ---------------------------------------------------------------------------
+
+COMPOSE_ENDPOINT = "/api/v1/projects/demo/reference-videos/episodes/1/compose"
+
+
+def _mark_unit_ready(reference_videos_client: TestClient, unit_id: str) -> None:
+    """把某 unit 标记成已生成成片（写脚本文件，不产生真实视频）。"""
+    from lib.project_manager import ProjectManager
+    from server.routers import reference_videos as router_mod
+
+    pm: ProjectManager = router_mod.get_project_manager()
+    script_path = pm.get_project_path("demo") / "scripts" / "episode_1.json"
+    script = json.loads(script_path.read_text(encoding="utf-8"))
+    for unit in script["video_units"]:
+        if unit["unit_id"] == unit_id:
+            unit["generated_assets"] = {"video_clip": f"reference_videos/{unit_id}.mp4"}
+    script_path.write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
+
+
+def _patch_compose_enqueue(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """把 compose 入队接到进程内假队列：路由测试只关心准入判定与传给队列的参数，
+    不需要真实 DB（真实入队路径已由 ``tests/integration/lib`` 的 worker/queue 测试覆盖）。
+    去重按 ``(project_name, task_type, resource_id, script_file)`` 模拟真实 DB 的 dedupe 语义。
+    """
+    from server.routers import reference_videos as router_mod
+
+    calls: list[dict[str, Any]] = []
+    dedupe_keys: dict[tuple[Any, ...], str] = {}
+    counter = {"n": 0}
+
+    class _FakeQueue:
+        async def enqueue_task(self, **kwargs: Any) -> dict[str, Any]:
+            calls.append(kwargs)
+            key = (kwargs["project_name"], kwargs["task_type"], kwargs["resource_id"], kwargs.get("script_file"))
+            if key in dedupe_keys:
+                return {"task_id": dedupe_keys[key], "deduped": True}
+            counter["n"] += 1
+            task_id = f"compose-task-{counter['n']}"
+            dedupe_keys[key] = task_id
+            return {"task_id": task_id, "deduped": False}
+
+    monkeypatch.setattr(router_mod, "get_generation_queue", lambda: _FakeQueue())
+    return calls
+
+
+def test_compose_rejects_when_no_units(reference_videos_client: TestClient) -> None:
+    resp = reference_videos_client.post(COMPOSE_ENDPOINT)
+    assert resp.status_code == 400, resp.text
+
+
+def test_compose_rejects_all_or_nothing_when_a_unit_has_no_clip(reference_videos_client: TestClient) -> None:
+    ready = _seed_unit(reference_videos_client)
+    not_ready = _seed_unit(reference_videos_client)
+    _mark_unit_ready(reference_videos_client, ready)
+
+    resp = reference_videos_client.post(COMPOSE_ENDPOINT)
+
+    assert resp.status_code == 409, resp.text
+    assert not_ready in resp.json()["detail"]
+
+
+def test_compose_enqueues_render_task_when_all_units_ready(
+    reference_videos_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unit_id = _seed_unit(reference_videos_client)
+    _mark_unit_ready(reference_videos_client, unit_id)
+    calls = _patch_compose_enqueue(monkeypatch)
+
+    resp = reference_videos_client.post(COMPOSE_ENDPOINT)
+
+    assert resp.status_code == 202, resp.text
+    body = resp.json()
+    assert body["task_id"]
+    assert body["deduped"] is False
+    assert len(calls) == 1
+    assert calls[0]["task_type"] == "reference_video_compose"
+    assert calls[0]["media_type"] == "render"
+    assert calls[0]["resource_id"] == "1"
+
+
+def test_compose_second_call_while_first_is_active_is_deduped(
+    reference_videos_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unit_id = _seed_unit(reference_videos_client)
+    _mark_unit_ready(reference_videos_client, unit_id)
+    _patch_compose_enqueue(monkeypatch)
+
+    first = reference_videos_client.post(COMPOSE_ENDPOINT)
+    second = reference_videos_client.post(COMPOSE_ENDPOINT)
+
+    assert first.status_code == 202, first.text
+    assert second.status_code == 202, second.text
+    assert second.json()["deduped"] is True
+    assert second.json()["task_id"] == first.json()["task_id"]

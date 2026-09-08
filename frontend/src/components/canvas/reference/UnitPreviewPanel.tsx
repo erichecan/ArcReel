@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Film, Loader2, Sparkles, RotateCcw, AlertTriangle } from "lucide-react";
+import { Film, Loader2, Sparkles, RotateCcw, AlertTriangle, Trash2 } from "lucide-react";
 import { API } from "@/api";
 import { useProjectsStore } from "@/stores/projects-store";
 import { VersionTimeMachine } from "@/components/canvas/timeline/VersionTimeMachine";
@@ -56,6 +56,10 @@ export interface UnitPreviewPanelProps {
   checkBusy?: (unitId: string) => boolean;
   /** 版本恢复后的刷新回调（重新拉取 units） */
   onRestored?: () => void | Promise<void>;
+  /**
+   * 请求删除该 unit（仅打开确认弹窗，实际删除与占用复核在调用方）。未提供时不显示删除入口。
+   */
+  onDelete?: (unitId: string) => void;
 }
 
 function hasCost(b: CostBreakdown | undefined): boolean {
@@ -85,6 +89,7 @@ export function UnitPreviewPanel({
   onRestoringChange,
   checkBusy,
   onRestored,
+  onDelete,
 }: UnitPreviewPanelProps) {
   const { t } = useTranslation("dashboard");
   const clip = unit?.generated_assets.video_clip ?? null;
@@ -153,6 +158,20 @@ export function UnitPreviewPanel({
             checkBusy={checkBusy ? () => checkBusy(unit.unit_id) : undefined}
             iconOnly
           />
+        )}
+        {/* 删除同样写这个 unit 的资源，与上传、恢复、主 CTA 同步接线禁用：占用期间删除
+            会与在跑的写入路径竞争同一份数据。实际占用复核落在调用方的确认提交时刻。 */}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(unit.unit_id)}
+            disabled={inFlight || busy || restoring}
+            title={t("reference_unit_delete_title")}
+            aria-label={t("reference_unit_delete_title")}
+            className="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-3)] transition-colors hover:text-warm-bright disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
         )}
         <StatusBadge status={effectiveStatus} size="md" />
       </div>

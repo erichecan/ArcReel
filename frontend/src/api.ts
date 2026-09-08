@@ -3388,6 +3388,10 @@ class API {
       duration_seconds?: number;
       transition_to_next?: TransitionType;
       note?: string | null;
+      /** 插入到该单元之后；省略且 `insert_at_start` 为假时追加到末尾。 */
+      after_id?: string;
+      /** 插入到列表最前面，优先于 `after_id`。 */
+      insert_at_start?: boolean;
     },
   ): Promise<{ unit: ReferenceVideoUnit }> {
     return this.request(
@@ -3501,6 +3505,20 @@ class API {
     return this.request(
       `/projects/${encodeURIComponent(projectName)}/reference-videos/episodes/${episode}/units/generate-batch`,
       { method: "POST", body: JSON.stringify(payload) },
+    );
+  }
+
+  /**
+   * 一键成片：把该集所有 video_units 的成片 + 各自旁白拼接渲染成一条 mp4。
+   * 全有或全无——服务端只要有一个 unit 还没成片就 409 拒绝，不建任务。
+   */
+  static async composeReferenceVideoEpisode(
+    projectName: string,
+    episode: number,
+  ): Promise<{ task_id: string; deduped: boolean }> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectName)}/reference-videos/episodes/${episode}/compose`,
+      { method: "POST" },
     );
   }
 

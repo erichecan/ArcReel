@@ -67,6 +67,7 @@ from server.services.narration_delivery_tasks import (
     prepare_current_reference_video_request_options,
     tts_task_in_progress,
 )
+from server.services.reference_video_compose import missing_video_clip_unit_ids
 from server.services.reference_video_tasks import (
     apply_unit_video_assets,
     default_unit_duration,
@@ -112,6 +113,9 @@ class AddUnitRequest(BaseModel):
     duration_seconds: int | None = Field(default=None, ge=1)
     transition_to_next: str = Field(default="cut", pattern=r"^(cut|fade|dissolve)$")
     note: str | None = None
+    # 插入位置：省略两者时沿用旧行为（追加到末尾）。insert_at_start 优先于 after_id。
+    after_id: str | None = None
+    insert_at_start: bool = False
 
 
 class GenerateUnitRequest(BaseModel):
@@ -316,7 +320,16 @@ async def add_unit(
             with_references=bool(refs),
         )
 
-    units = current.get("video_units") if isinstance(current.get("video_units"), list) else []
+    raw_units = current.get("video_units")
+    units = raw_units if isinstance(raw_units, list) else []
+    if req.insert_at_start:
+        after_id = None
+    elif req.after_id is not None:
+        if not any(str(u.get("unit_id")) == req.after_id for u in units):
+            raise HTTPException(status_code=404, detail=_t("ref_unit_not_found", unit_id=req.after_id))
+        after_id = req.after_id
+    else:
+        after_id = units[-1].get("unit_id") if units else None
     unit = _build_unit_dict(
         unit_id=_next_unit_id(current, episode),
         prompt=req.prompt,
@@ -330,7 +343,7 @@ async def add_unit(
         episode,
         script_file,
         current,
-        [{"op": "insert_after", "after_id": units[-1].get("unit_id") if units else None, "item": unit}],
+        [{"op": "insert_after", "after_id": after_id, "item": unit}],
     )
     require_script_edit_result(result)
     saved = get_project_manager().load_script(project_name, result.script)
@@ -805,6 +818,44 @@ async def generate_units_batch(
     payload["task_ids_by_unit"] = {item.resource_id: item.task_id for item in enqueued}
     payload["deduped"] = bool(enqueued) and all(item.deduped for item in enqueued)
     return payload
+
+
+@router.post("/episodes/{episode}/compose", status_code=status.HTTP_202_ACCEPTED)
+async def compose_episode_video(
+    project_name: str,
+    episode: int,
+    user: CurrentUser,
+    _t: Translator,
+) -> dict[str, Any]:
+    """一键成片：把该集所有 video_units 的成片 + 各自旁白拼接渲染成一条 mp4。
+
+    全有或全无：只要有一个 unit 还没有成片就整体拒绝，不做部分跳过（与
+    ``admit_reference_video_batch`` 的既有准入规范同口径）。
+    """
+    _project, script, script_file = _load_episode_script(project_name, episode, _t)
+    units = script.get("video_units") or []
+    if not units:
+        raise HTTPException(status_code=400, detail=_t("ref_compose_no_units"))
+
+    missing = missing_video_clip_unit_ids(units)
+    if missing:
+        raise HTTPException(
+            status_code=409,
+            detail=_t("ref_compose_units_not_ready", ids=", ".join(missing)),
+        )
+
+    queue = get_generation_queue()
+    result = await queue.enqueue_task(
+        project_name=project_name,
+        task_type="reference_video_compose",
+        media_type="render",
+        resource_id=str(episode),
+        payload={"script_file": script_file},
+        script_file=script_file,
+        source="webui",
+        user_id=user.id,
+    )
+    return {"task_id": result["task_id"], "deduped": result.get("deduped", False)}
 
 
 @router.post("/episodes/{episode}/units/{unit_id}/upload-video")
