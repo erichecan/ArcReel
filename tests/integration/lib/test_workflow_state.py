@@ -14,7 +14,8 @@ from lib.artifact_activation import (
     register_current_artifact_if_provable,
 )
 from lib.artifact_manifest import ArtifactBasisDescriptor, ArtifactKey, ProjectArtifactManifestAdapter
-from lib.asset_inventory import complete_asset_inventory
+from lib.asset_inventory import AssetInventoryInvalidRequest, complete_asset_inventory
+from lib.asset_inventory import confirm_ad_asset_plan as _confirm_ad_asset_plan
 from lib.episode_ledger import (
     SOURCE_FINGERPRINTS_KEY,
     compute_source_fingerprints,
@@ -47,12 +48,19 @@ def _make_project(
     mode: str,
     *,
     generation_mode: str = "storyboard",
+    confirm_ad_asset_plan: bool = True,
 ) -> tuple[ProjectManager, Path]:
+    """Build a bare project. Ad projects default to a confirmed (empty) asset plan so
+    tests that are not about the asset-plan gate itself do not have to know it exists;
+    pass ``confirm_ad_asset_plan=False`` to exercise the gate directly."""
+
     pm = ProjectManager(tmp_path / "projects")
     pm.create_project("demo")
     extras = {"generation_mode": generation_mode, "grid_storyboard": False}
     if mode == "ad":
         pm.create_project_metadata("demo", "Demo", "", mode, extras=extras, target_duration=30)
+        if confirm_ad_asset_plan:
+            _confirm_ad_asset_plan(pm, "demo", no_additional_assets=True)
     else:
         pm.create_project_metadata("demo", "Demo", "", mode, extras=extras)
     return pm, pm.get_project_path("demo")
@@ -402,17 +410,51 @@ def test_manual_presplit_summary_lists_episodes_without_writing_the_ledger(tmp_p
     assert project_file.read_bytes() == before
 
 
-def test_ad_is_episode_one_and_skips_asset_inventory_and_script_plan(tmp_path: Path) -> None:
+def test_ad_is_episode_one_and_skips_script_plan(tmp_path: Path) -> None:
     pm, _project_path = _make_project(tmp_path, "ad")
 
     status = WorkflowStateService(pm).get_status("demo")
 
     assert status.target is not None
     assert status.target.episode == 1
-    assert status.artifacts["asset_inventory"]["state"] == "not_applicable"
+    assert status.artifacts["asset_inventory"]["state"] == "confirmed"
     assert status.gates["script_plan_review"]["state"] == "not_applicable"
     assert status.state == "FINAL_SCRIPT"
     assert status.next_action.type == "generate_script"
+
+
+def test_ad_asset_plan_unconfirmed_blocks_script_generation(tmp_path: Path) -> None:
+    pm, _project_path = _make_project(tmp_path, "ad", confirm_ad_asset_plan=False)
+
+    status = WorkflowStateService(pm).get_status("demo")
+
+    assert status.state == "ASSET_INVENTORY"
+    assert status.artifacts["asset_inventory"]["state"] == "pending"
+    assert status.next_action.type == "confirm_ad_asset_plan"
+
+
+def test_ad_asset_plan_with_registered_characters_still_needs_confirmation(tmp_path: Path) -> None:
+    pm, _project_path = _make_project(tmp_path, "ad", confirm_ad_asset_plan=False)
+    pm.update_project(
+        "demo",
+        lambda project: project.__setitem__("characters", {"厨师": {"description": "后厨掌勺", "character_sheet": ""}}),
+    )
+
+    status = WorkflowStateService(pm).get_status("demo")
+    assert status.state == "ASSET_INVENTORY"
+
+    _confirm_ad_asset_plan(pm, "demo")
+    status = WorkflowStateService(pm).get_status("demo")
+    assert status.state == "FINAL_SCRIPT"
+    assert status.artifacts["asset_inventory"]["state"] == "confirmed"
+    assert status.artifacts["asset_inventory"]["no_additional_assets"] is False
+
+
+def test_ad_asset_plan_confirmation_requires_assets_or_explicit_opt_out(tmp_path: Path) -> None:
+    pm, _project_path = _make_project(tmp_path, "ad", confirm_ad_asset_plan=False)
+
+    with pytest.raises(AssetInventoryInvalidRequest):
+        _confirm_ad_asset_plan(pm, "demo")
 
 
 def test_media_paths_must_resolve_to_project_files_before_becoming_current(tmp_path: Path) -> None:

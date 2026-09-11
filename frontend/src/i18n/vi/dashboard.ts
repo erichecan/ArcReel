@@ -1698,6 +1698,7 @@ export default {
   'tool_name_create_project': 'Tạo dự án',
   'tool_name_upload_source': 'Tải tệp nguồn lên',
   'tool_name_complete_asset_inventory': 'Hoàn tất kiểm kê tài sản',
+  'tool_name_confirm_ad_asset_plan': 'Xác nhận kế hoạch tài nguyên dự án quảng cáo',
   'tool_name_complete_script_plan_rebuild': 'Hoàn tất tái tạo kế hoạch kịch bản',
   'tool_name_get_workflow_plan': 'Xem kế hoạch quy trình đầy đủ',
   'tool_name_get_prompt_preview': 'Xem lời nhắc cuối cùng',

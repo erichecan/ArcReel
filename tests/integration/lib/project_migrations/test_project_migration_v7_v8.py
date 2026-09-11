@@ -1571,6 +1571,13 @@ def test_schema8_workflow_keeps_a_stale_typed_video_usable(tmp_path: Path) -> No
         "props": {},
         "products": {},
         "episodes": [{"episode": 1, "script_file": "scripts/episode_1.json"}],
+        "workflow": {
+            "ad_asset_plan": {
+                "confirmed": True,
+                "confirmed_at": "2026-01-01T00:00:00+00:00",
+                "no_additional_assets": True,
+            }
+        },
     }
     script = {
         "episode": 1,

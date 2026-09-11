@@ -1565,6 +1565,7 @@ export default {
   'tool_name_create_project': '创建项目',
   'tool_name_upload_source': '上传源文件',
   'tool_name_complete_asset_inventory': '完成资产清单分析',
+  'tool_name_confirm_ad_asset_plan': '确认广告项目资产清单',
   'tool_name_complete_script_plan_rebuild': '完成脚本规划重建',
   'tool_name_get_workflow_plan': '查询完整工作流计划',
   'tool_name_get_prompt_preview': '预览最终提示词',

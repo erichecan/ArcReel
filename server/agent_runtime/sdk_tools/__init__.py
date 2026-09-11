@@ -18,7 +18,10 @@ from typing import Any
 from claude_agent_sdk import create_sdk_mcp_server
 
 from lib.db.base import DEFAULT_USER_ID
-from server.agent_runtime.sdk_tools.asset_inventory import complete_asset_inventory_tool
+from server.agent_runtime.sdk_tools.asset_inventory import (
+    complete_asset_inventory_tool,
+    confirm_ad_asset_plan_tool,
+)
 from server.agent_runtime.sdk_tools.content_read import (
     get_episode_script_tool,
     get_project_content_tool,
@@ -84,6 +87,7 @@ ARCREEL_MCP_TOOL_IDS: tuple[str, ...] = (
     "create_project",
     "upload_source",
     "complete_asset_inventory",
+    "confirm_ad_asset_plan",
     "complete_script_plan_rebuild",
     "get_workflow_plan",
     "get_prompt_preview",
@@ -141,6 +145,7 @@ ARCREEL_MCP_TOOL_IDS: tuple[str, ...] = (
 MIGRATION_BLOCKED_TOOL_IDS: frozenset[str] = frozenset(
     {
         "complete_asset_inventory",
+        "confirm_ad_asset_plan",
         "complete_script_plan_rebuild",
         "generate_assets",
         "generate_storyboards",
@@ -195,6 +200,7 @@ def build_arcreel_mcp_server(*, project_name: str, projects_root: Path, user_id:
         create_project_tool(ctx),
         upload_source_tool(ctx),
         complete_asset_inventory_tool(ctx),
+        confirm_ad_asset_plan_tool(ctx),
         complete_script_plan_rebuild_tool(ctx),
         get_workflow_plan_tool(ctx),
         get_prompt_preview_tool(ctx),

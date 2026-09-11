@@ -127,6 +127,58 @@ def complete_asset_inventory(
     return completed[0]
 
 
+@dataclass(frozen=True)
+class AdAssetPlanConfirmation:
+    no_additional_assets: bool
+    counts: dict[str, int]
+
+
+def confirm_ad_asset_plan(
+    pm: ProjectManager,
+    project_name: str,
+    no_additional_assets: bool = False,
+) -> AdAssetPlanConfirmation:
+    """Mark an ad project's character/scene/prop plan as confirmed.
+
+    Unlike ``complete_asset_inventory``, ad projects have no source-file revision to
+    check against: this is a one-shot confirmation, not a re-analyzable fact.
+    """
+
+    confirmed: list[AdAssetPlanConfirmation] = []
+    counts: dict[str, int] = {}
+
+    def _mutate(project: dict[str, Any]) -> None:
+        if project.get("content_mode") != "ad":
+            raise AssetInventoryInvalidRequest("ad asset plan confirmation only applies to ad projects")
+        counts["characters"] = _bucket_count(project.get("characters"))
+        counts["scenes"] = _bucket_count(project.get("scenes"))
+        counts["props"] = _bucket_count(project.get("props"))
+        has_assets = any(counts[key] > 0 for key in ("characters", "scenes", "props"))
+        if not has_assets and not no_additional_assets:
+            raise AssetInventoryInvalidRequest(
+                "no character/scene/prop assets are defined; pass no_additional_assets=true "
+                "to confirm this project intentionally needs none"
+            )
+
+        workflow = project.get("workflow")
+        if workflow is None:
+            workflow = {}
+            project["workflow"] = workflow
+        elif not isinstance(workflow, dict):
+            raise AssetInventoryError("workflow must be an object")
+        workflow["ad_asset_plan"] = {
+            "confirmed": True,
+            "confirmed_at": datetime.now(UTC).isoformat(),
+            "no_additional_assets": no_additional_assets,
+        }
+        confirmed.append(AdAssetPlanConfirmation(no_additional_assets=no_additional_assets, counts=dict(counts)))
+
+    pm.update_project(project_name, _mutate)
+    if not confirmed:  # pragma: no cover - update_project always invokes the callback or raises
+        raise RuntimeError("ad asset plan confirmation did not run")
+    return confirmed[0]
+
+
 def _prepare_entries(entries: object) -> dict[str, dict[str, dict[str, Any]]]:
     """Normalize the three extraction buckets before entering the project transaction."""
 
@@ -184,10 +236,12 @@ def _prepare_entries(entries: object) -> dict[str, dict[str, dict[str, Any]]]:
 
 
 __all__ = [
+    "AdAssetPlanConfirmation",
     "AssetInventoryCompletion",
     "AssetInventoryError",
     "AssetInventoryInvalidRequest",
     "AssetInventoryRevisionConflict",
     "AssetInventorySourceBlocked",
     "complete_asset_inventory",
+    "confirm_ad_asset_plan",
 ]

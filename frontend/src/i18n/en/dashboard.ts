@@ -1566,6 +1566,7 @@ export default {
   'tool_name_create_project': 'Create project',
   'tool_name_upload_source': 'Upload source',
   'tool_name_complete_asset_inventory': 'Complete asset inventory',
+  'tool_name_confirm_ad_asset_plan': 'Confirm ad project asset plan',
   'tool_name_complete_script_plan_rebuild': 'Complete script plan rebuild',
   'tool_name_get_workflow_plan': 'Get complete workflow plan',
   'tool_name_get_prompt_preview': 'Preview final prompts',

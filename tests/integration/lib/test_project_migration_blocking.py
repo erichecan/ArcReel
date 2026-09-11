@@ -21,6 +21,7 @@ from lib.artifact_activation import (
     register_current_artifact_if_provable,
 )
 from lib.artifact_manifest import ArtifactKey
+from lib.asset_inventory import confirm_ad_asset_plan
 from lib.generation_queue import GenerationQueue
 from lib.generation_result import GenerationAction, GenerationProblemCode
 from lib.json_io import atomic_write_json
@@ -200,6 +201,7 @@ async def test_retry_success_uses_caller_scoped_queue_and_capabilities(tmp_path:
     projects = ProjectManager(projects_root)
     projects.create_project("demo", content_mode="ad")
     projects.create_project_metadata("demo", "Demo", "", "ad", target_duration=30)
+    confirm_ad_asset_plan(projects, "demo", no_additional_assets=True)
     project_dir = projects.get_project_path("demo")
     atomic_write_json(
         project_dir / "scripts" / "episode_1.json",

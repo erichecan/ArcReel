@@ -28,6 +28,9 @@ from lib.asset_inventory import (
 from lib.asset_inventory import (
     complete_asset_inventory as complete_asset_inventory_service,
 )
+from lib.asset_inventory import (
+    confirm_ad_asset_plan as confirm_ad_asset_plan_service,
+)
 from lib.asset_types import ASSET_SPECS
 from lib.async_thread import run_sync_transaction as _run_sync_transaction
 from lib.character_voice import VALID_CHARACTER_VOICE_BINDINGS
@@ -1697,6 +1700,17 @@ class CompleteAssetInventoryResult(BaseModel):
     counts: dict[str, int]
 
 
+class ConfirmAdAssetPlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    no_additional_assets: bool = False
+
+
+class ConfirmAdAssetPlanResult(BaseModel):
+    no_additional_assets: bool
+    counts: dict[str, int]
+
+
 class CompleteScriptPlanRebuildRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -2357,6 +2371,39 @@ async def complete_asset_inventory(
     )
 
 
+async def confirm_ad_asset_plan(
+    request: ToolRequest[ConfirmAdAssetPlanRequest],
+    scope: ProjectScope,
+    _caller: CallerContext,
+    services: Services,
+    *,
+    run_sync: Callable[..., Awaitable[Any]] = asyncio.to_thread,
+    confirm: Callable[..., Any] = confirm_ad_asset_plan_service,
+) -> ToolOutcome[ConfirmAdAssetPlanResult]:
+    if problem := await migration_gate(scope, services):
+        return ToolOutcome(problem=problem)
+    value = request.value
+    try:
+        confirmed = await run_sync(
+            confirm,
+            services.projects,
+            scope.project_name,
+            value.no_additional_assets,
+        )
+    except AssetInventoryInvalidRequest as exc:
+        return ToolOutcome(problem=ToolProblem("invalid_request", str(exc)))
+    except AssetInventoryError as exc:
+        return ToolOutcome(problem=ToolProblem("inventory_unavailable", str(exc)))
+    except Exception as exc:
+        return ToolOutcome(problem=_unexpected("confirm_ad_asset_plan", exc))
+    return ToolOutcome(
+        value=ConfirmAdAssetPlanResult(
+            no_additional_assets=confirmed.no_additional_assets,
+            counts=confirmed.counts,
+        )
+    )
+
+
 async def complete_script_plan_rebuild(
     request: ToolRequest[CompleteScriptPlanRebuildRequest],
     scope: ProjectScope,
@@ -2393,6 +2440,7 @@ __all__ = [
     "CallerContext",
     "CompleteAssetInventoryRequest",
     "CompleteScriptPlanRebuildRequest",
+    "ConfirmAdAssetPlanRequest",
     "CreateProjectToolRequest",
     "DiscardDraftRequest",
     "DraftLocator",
@@ -2426,6 +2474,7 @@ __all__ = [
     "cancel_generation_batch",
     "complete_asset_inventory",
     "complete_script_plan_rebuild",
+    "confirm_ad_asset_plan",
     "confirm_script_review",
     "create_project",
     "discard_draft",

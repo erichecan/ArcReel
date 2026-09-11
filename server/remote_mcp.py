@@ -55,6 +55,7 @@ from server.tool_runtime import (
     CallerContext,
     CompleteAssetInventoryRequest,
     CompleteScriptPlanRebuildRequest,
+    ConfirmAdAssetPlanRequest,
     CreateProjectToolRequest,
     GenerationBatchToolRequest,
     PatchEpisodeMetaRequest,
@@ -74,6 +75,7 @@ from server.tool_runtime import (
     cancel_generation_batch,
     complete_asset_inventory,
     complete_script_plan_rebuild,
+    confirm_ad_asset_plan,
     confirm_script_review,
     create_project,
     discard_draft,
@@ -800,6 +802,22 @@ def build_remote_mcp_server(
         return _to_mcp_result(
             "asset_inventory",
             await complete_asset_inventory(ToolRequest(request), project_scope, _authenticated_caller(), services),
+        )
+
+    @server.tool(name="confirm_ad_asset_plan", structured_output=False)
+    async def remote_confirm_ad_asset_plan(  # pyright: ignore[reportUnusedFunction]
+        project: str,
+        no_additional_assets: bool = False,
+    ) -> CallToolResult:
+        """Confirm an ad project's character/scene/prop asset plan before script generation."""
+        try:
+            project_scope = _project_scope(project, projects)
+            request = ConfirmAdAssetPlanRequest(no_additional_assets=no_additional_assets)
+        except (FileNotFoundError, ValueError) as exc:
+            return _to_mcp_result("ad_asset_plan", ToolOutcome(problem=ToolProblem("invalid_request", str(exc))))
+        return _to_mcp_result(
+            "ad_asset_plan",
+            await confirm_ad_asset_plan(ToolRequest(request), project_scope, _authenticated_caller(), services),
         )
 
     @server.tool(name="complete_script_plan_rebuild", structured_output=False)

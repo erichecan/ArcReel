@@ -66,6 +66,7 @@ _CONTENT_STEPS: dict[str, frozenset[str]] = {
         {
             "project_input",
             "selling_points",
+            "asset_inventory",
             "final_script",
             "asset_sheets",
             "script_structure",

@@ -124,6 +124,7 @@ class WorkflowActionType(StrEnum):
     COLLECT_PROJECT_INPUT = "collect_project_input"
     DRAFT_SELLING_POINTS = "draft_selling_points"
     ANALYZE_ASSETS = "analyze_assets"
+    CONFIRM_AD_ASSET_PLAN = "confirm_ad_asset_plan"
     PLAN_EPISODES = "plan_episodes"
     RESET_EPISODE_PLANNING = "reset_episode_planning"
     PREPARE_SCRIPT_PLAN = "prepare_script_plan"
@@ -282,6 +283,7 @@ class _SharedWorkflowFacts:
     planning_sources: tuple[SourceDoc, ...]
     planning_complete: bool
     inventory: dict[str, Any]
+    ad_asset_plan: dict[str, Any]
     sheets: dict[str, dict[str, Any]]
     episodes: list[tuple[int, dict[str, Any]]]
     currency: ArtifactCurrencyResolver | None
@@ -532,6 +534,21 @@ class WorkflowStateService:
         else:
             artifact["state"] = "stale"
         return source, artifact
+
+    @staticmethod
+    def _ad_asset_plan_status(project: dict[str, Any]) -> dict[str, Any]:
+        """Ad projects have no source text, so this checks a one-shot confirmation
+        marker instead of the narration/drama source-revision inventory."""
+
+        workflow = project.get("workflow")
+        marker = workflow.get("ad_asset_plan") if isinstance(workflow, Mapping) else None
+        if isinstance(marker, Mapping) and marker.get("confirmed") is True:
+            return {
+                "state": "confirmed",
+                "confirmed_at": marker.get("confirmed_at"),
+                "no_additional_assets": marker.get("no_additional_assets"),
+            }
+        return {"state": "pending"}
 
     def _asset_sheets(
         self,
@@ -1322,6 +1339,7 @@ class WorkflowStateService:
                 )
             )
         source, inventory = self._source_inventory(project_path, project, str(mode), blockers)
+        ad_asset_plan = self._ad_asset_plan_status(project) if mode == "ad" else {"state": "not_applicable"}
         planning_sources = planning_docs(source) if mode != "ad" else ()
         planning_complete = self._planning_complete(project, source, planning_sources)
         sheets = self._asset_sheets(project_path, project, blockers, currency)
@@ -1331,6 +1349,7 @@ class WorkflowStateService:
             planning_sources=planning_sources,
             planning_complete=planning_complete,
             inventory=inventory,
+            ad_asset_plan=ad_asset_plan,
             sheets=sheets,
             episodes=episodes,
             currency=currency,
@@ -1355,10 +1374,11 @@ class WorkflowStateService:
         blockers = list(shared.blockers)
         source = shared.source
         inventory = shared.inventory
+        ad_asset_plan = shared.ad_asset_plan
         sheets = shared.sheets
         currency = shared.currency
         artifacts: dict[str, dict[str, Any]] = {
-            "asset_inventory": inventory,
+            "asset_inventory": ad_asset_plan if mode == "ad" else inventory,
             "asset_sheets": sheets,
             "script_plan": {"state": "not_applicable" if mode == "ad" else "missing"},
             "script": {"state": "missing"},
@@ -1502,6 +1522,14 @@ class WorkflowStateService:
                         state = "SELLING_POINTS"
                         next_action = _action(
                             WorkflowActionType.DRAFT_SELLING_POINTS, "products need selling points", ids=pending_points
+                        )
+                        return self._response(project, source, target, state, blockers, gates, artifacts, next_action)
+                    if ad_asset_plan.get("state") != "confirmed":
+                        state = "ASSET_INVENTORY"
+                        next_action = _action(
+                            WorkflowActionType.CONFIRM_AD_ASSET_PLAN,
+                            "recurring characters, scenes, or props need asset sheets before script generation, "
+                            "or an explicit confirmation that this project needs no additional assets",
                         )
                         return self._response(project, source, target, state, blockers, gates, artifacts, next_action)
                 else:
