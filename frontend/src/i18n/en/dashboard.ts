@@ -1708,6 +1708,13 @@ export default {
   'ad_init_submitting': 'Submitting...',
   'ad_init_success_toast': 'Materials ready — time to create',
   'ad_init_failed': 'Initialization failed: {{message}}',
+  'ad_asset_plan_title': 'Confirm asset plan',
+  'ad_asset_plan_hint': 'If a character, scene, or prop that recurs across video units has no reference art, each unit will render it differently — the same person or place will look inconsistent from shot to shot. Register the assets you need, or confirm this short film genuinely needs no additional assets.',
+  'ad_asset_plan_no_additional_label': "This project needs no additional assets (no recurring characters/scenes/props)",
+  'ad_asset_plan_confirm_button': 'Confirm asset plan',
+  'ad_asset_plan_confirming': 'Confirming…',
+  'ad_asset_plan_confirmed_toast': 'Asset plan confirmed — ready to generate the script',
+  'ad_asset_plan_confirm_failed': 'Confirmation failed: {{message}}',
 
   'workspace_nav_products': 'Merchandise',
 

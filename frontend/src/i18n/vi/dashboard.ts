@@ -1769,6 +1769,13 @@ export default {
   'ad_init_submitting': 'Đang gửi...',
   'ad_init_success_toast': 'Tư liệu đã sẵn sàng — bắt đầu sáng tạo',
   'ad_init_failed': 'Khởi tạo thất bại: {{message}}',
+  'ad_asset_plan_title': 'Xác nhận kế hoạch tài nguyên',
+  'ad_asset_plan_hint': 'Nếu một nhân vật, bối cảnh hoặc đạo cụ lặp lại giữa các đơn vị video mà không có ảnh tham chiếu, mỗi đơn vị sẽ dựng hình khác nhau — cùng một người hoặc địa điểm sẽ trông không nhất quán giữa các cảnh quay. Hãy đăng ký các tài nguyên cần thiết, hoặc xác nhận rằng đoạn phim ngắn này thực sự không cần thêm tài nguyên nào.',
+  'ad_asset_plan_no_additional_label': 'Dự án này không cần thêm tài nguyên (không có nhân vật/bối cảnh/đạo cụ lặp lại)',
+  'ad_asset_plan_confirm_button': 'Xác nhận kế hoạch tài nguyên',
+  'ad_asset_plan_confirming': 'Đang xác nhận…',
+  'ad_asset_plan_confirmed_toast': 'Đã xác nhận kế hoạch tài nguyên — sẵn sàng tạo kịch bản',
+  'ad_asset_plan_confirm_failed': 'Xác nhận thất bại: {{message}}',
 
   'workspace_nav_products': 'Hàng hóa',
   'workspace_nav_scenes': 'Cảnh',

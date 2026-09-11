@@ -92,13 +92,29 @@ A → B → D → C，一个周期一个单元，完成即验证、提交，再�
 
 ## 单元 C：前端资产清单向导 UI
 
-- 状态：待开始
+- 状态：已完成（2026-09-10）
+- 实际方案（比原计划更省改动）：调研发现 `OverviewCanvas.tsx` 里"资产进度"卡片（角色/场景/道具计数+进度条）
+  对所有 content_mode 都已渲染，不需要重建；`lorebook/` 现成的资产管理页（`characters`/`scenes`/`props`
+  路由）也已存在，可以直接跳转。真正缺的只是一张"确认门禁"卡片，因此没有复用 `lorebook` 的卡片列表/表单
+  组件本身，而是新增一个轻量的 `AdAssetPlanGate` 卡片，跳转到既有的资产管理页面而不是重新实现资产 CRUD。
 - 产出：
-  - `AdInitCanvas` 提交后，若 `ad_asset_plan.confirmed` 未标记，插入资产清单确认步骤
-  - 复用 `frontend/src/components/canvas/lorebook/` 现成卡片列表 + 新增表单模式
-  - 调用单元 A 新增的确认接口
-- 验收标准：`(cd frontend && pnpm check)` 通过；新增 i18n key 全语言同步；手动/自动化验证走一遍创建项目→资产清单确认流程
-- 依赖：单元 A（需要接口已存在）
+  - 后端 REST 接口 `POST /projects/{name}/ad-asset-plan/confirm`（`server/routers/projects.py`），
+    复用单元 A 的 `lib.asset_inventory.confirm_ad_asset_plan`；错误走 `domain_error_on_value_error` 转
+    `BadRequestError`，新增 i18n key `ad_asset_plan_confirmation_requires_assets`（三语，`lib/i18n/{zh,en,vi}/errors.py`）
+  - `frontend/src/api.ts`：`API.confirmAdAssetPlan(projectName, noAdditionalAssets)`；
+    `frontend/src/types/workflow.ts` 新增 `AdAssetPlanConfirmation` 类型
+  - `frontend/src/components/canvas/AdAssetPlanGate.tsx`：新组件，读 `useWorkflowStore` 的计划，
+    `next_action.type === "confirm_ad_asset_plan"` 时渲染——提示 + 跳转角色/场景/道具管理页的按钮
+    + "本项目不需要额外资产"勾选框 + 确认按钮；挂载于 `OverviewCanvas.tsx`（ad 项目、非初始化态时）
+  - 三语 i18n：`frontend/src/i18n/{zh,en,vi}/dashboard.ts` 新增 `ad_asset_plan_*` 系列 key
+  - 测试：`tests/integration/server/routers/test_projects_ad_asset_plan.py`（4 用例）、
+    `frontend/src/components/canvas/AdAssetPlanGate.test.tsx`（4 用例）
+- 验收标准（已核实）：
+  - 后端：`uv run python -m pytest tests/integration/server/routers/test_projects_ad_asset_plan.py`：4 passed ✅；
+    `uv run ruff check . / basedpyright --warnings / lint-imports / deptry / audit_tests.py --check`：全部通过 ✅；
+    `uv run python -m pytest -n 4 --dist loadfile`：12041 passed，无回归 ✅
+  - 前端：`npx tsc --noEmit`：无类型错误 ✅；`(cd frontend && pnpm check)`：184 test files / 2154 tests 全过 ✅
+- 依赖：单元 A（接口已在单元 A 落地，本单元只是补一层 REST 包装）
 
 ---
 

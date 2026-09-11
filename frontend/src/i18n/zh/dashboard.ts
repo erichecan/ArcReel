@@ -1707,6 +1707,13 @@ export default {
   'ad_init_submitting': '提交中...',
   'ad_init_success_toast': '素材已就绪，开始创作吧',
   'ad_init_failed': '初始化失败: {{message}}',
+  'ad_asset_plan_title': '资产清单确认',
+  'ad_asset_plan_hint': '脚本里反复出现的角色、场景或道具，如果没有登记资产图，各视频单元生成时画面会互相对不上（同一个人物、场景在不同镜头里长得不一样）。请先登记需要的资产，或者确认这条短片确实不需要额外资产。',
+  'ad_asset_plan_no_additional_label': '本项目不需要额外资产（无反复出现的角色/场景/道具）',
+  'ad_asset_plan_confirm_button': '确认资产清单',
+  'ad_asset_plan_confirming': '确认中…',
+  'ad_asset_plan_confirmed_toast': '资产清单已确认，可以生成剧本了',
+  'ad_asset_plan_confirm_failed': '确认失败: {{message}}',
 
   'workspace_nav_products': '商品',
 

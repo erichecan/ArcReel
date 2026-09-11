@@ -13,6 +13,7 @@ import { itemCountKey, normalizeRoute } from "@/utils/generation-mode";
 
 import { WelcomeCanvas } from "./WelcomeCanvas";
 import { AdInitCanvas } from "./AdInitCanvas";
+import { AdAssetPlanGate } from "./AdAssetPlanGate";
 import { ConflictModal, type ConflictResolution } from "./ConflictModal";
 import { AgentHandoffHint } from "@/components/copilot/AgentHandoffHint";
 import { ONBOARDING_ANCHORS } from "@/onboarding/anchors";
@@ -336,6 +337,8 @@ export function OverviewCanvas({
           />
         ) : (
           <>
+            {isAd && <AdAssetPlanGate projectName={projectName} onConfirmed={refreshProject} />}
+
             {/* Synopsis / overview card */}
             <section
               data-onboarding={ONBOARDING_ANCHORS.workbenchOverview}

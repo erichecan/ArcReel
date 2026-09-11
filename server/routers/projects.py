@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 from lib.api_errors import ApiError, BadRequestError, NotFoundError, UnprocessableError
 from lib.asset_fingerprints import compute_asset_fingerprints
+from lib.asset_inventory import confirm_ad_asset_plan
 from lib.asset_types import asset_name_comparison_key
 from lib.character_voice import PROJECT_FIELD as CHARACTER_VOICE_BINDING_FIELD
 from lib.character_voice import VALID_CHARACTER_VOICE_BINDINGS
@@ -812,6 +813,36 @@ async def get_workflow_plan(name: str, request: WorkflowPlanRequest, current_use
         raise NotFoundError("project_not_found", name=name) from exc
     except WorkflowRequestError as exc:
         raise BadRequestError("request_invalid") from exc
+
+
+class AdAssetPlanConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    no_additional_assets: bool = False
+
+
+@router.post("/projects/{name}/ad-asset-plan/confirm")
+async def confirm_ad_asset_plan_endpoint(name: str, request: AdAssetPlanConfirmRequest):
+    """用户在资产清单向导里确认 ad 项目的角色/场景/道具资产计划，放行剧本生成。
+
+    没有源文件修订号可比对，是一次性确认，不是可重新分析的事实——与 narration/drama 的
+    asset inventory 不同。
+    """
+
+    def _requires_assets(exc: ValueError) -> BadRequestError:
+        return BadRequestError("ad_asset_plan_confirmation_requires_assets")
+
+    try:
+        with domain_error_on_value_error(_requires_assets):
+            result = await asyncio.to_thread(
+                confirm_ad_asset_plan,
+                get_project_manager(),
+                name,
+                request.no_additional_assets,
+            )
+    except FileNotFoundError as exc:
+        raise NotFoundError("project_not_found", name=name) from exc
+    return {"no_additional_assets": result.no_additional_assets, "counts": result.counts}
 
 
 @router.get("/projects/{name}")

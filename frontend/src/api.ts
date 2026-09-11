@@ -87,7 +87,7 @@ import type {
 } from "@/types/presentation";
 import type { Asset, AssetType, AssetCreatePayload, AssetUpdatePayload } from "@/types/asset";
 import type { AgentMemoryOverview, AgentMemoryScope } from "@/types/agent-memory";
-import type { WorkflowPlan, WorkflowPlanRequest } from "@/types/workflow";
+import type { AdAssetPlanConfirmation, WorkflowPlan, WorkflowPlanRequest } from "@/types/workflow";
 import type {
   AgentCredential,
   CreateAgentCredentialRequest,
@@ -1661,6 +1661,18 @@ class API {
       `/projects/${encodeURIComponent(projectName)}/episodes/${episode}/script-review/confirm`,
       { method: "POST" }
     );
+  }
+
+  /** 确认 ad 项目的角色/场景/道具资产清单，放行剧本生成。没有登记任何资产时须传
+   * `noAdditionalAssets: true` 显式确认本项目不需要额外资产，否则服务端 400。 */
+  static async confirmAdAssetPlan(
+    projectName: string,
+    noAdditionalAssets = false
+  ): Promise<AdAssetPlanConfirmation> {
+    return this.request(`/projects/${encodeURIComponent(projectName)}/ad-asset-plan/confirm`, {
+      method: "POST",
+      body: JSON.stringify({ no_additional_assets: noAdditionalAssets }),
+    });
   }
 
   // ==================== 分镜管理（旁白/解说） ====================

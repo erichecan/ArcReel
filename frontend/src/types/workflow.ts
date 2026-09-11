@@ -290,3 +290,9 @@ export interface WorkflowPlanRequest {
   narration_delivery?: NarrationDelivery | null;
   confirmed_request_durations?: Record<string, number>;
 }
+
+/** `POST /projects/{name}/ad-asset-plan/confirm` 的响应体。 */
+export interface AdAssetPlanConfirmation {
+  no_additional_assets: boolean;
+  counts: Record<string, number>;
+}

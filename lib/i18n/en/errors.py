@@ -446,6 +446,7 @@ MESSAGES = {
     "text_provider_not_configured": "Please configure a text provider first: add at least one provider in Settings → Providers",
     "jianying_no_completed_segments": "Episode {episode} has no completed video clips; generate videos first",
     "presentation_unavailable": "The selected video presentation is unavailable or no longer fits its media boundary",
+    "ad_asset_plan_confirmation_requires_assets": "No characters, scenes, or props are registered yet — register at least one, or explicitly confirm this project needs no additional assets",
     "project_config_invalid": "Invalid project configuration; check the parameters and retry",
     "invalid_discovery_format": "Unsupported model discovery format: {discovery_format}",
     "request_invalid": "Invalid request, please check and retry",
