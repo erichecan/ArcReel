@@ -330,6 +330,7 @@ class SessionManager:
         "Grep",
         "Glob",
         "WebFetch",
+        "WebSearch",
         "AskUserQuestion",
     ]
     DEFAULT_SETTING_SOURCES: ClassVar[list[str]] = ["project"]

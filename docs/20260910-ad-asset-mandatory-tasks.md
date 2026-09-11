@@ -70,13 +70,25 @@ A → B → D → C，一个周期一个单元，完成即验证、提交，再�
 
 ## 单元 D：美食脚本调研（仅食物类目默认开启）
 
-- 状态：待开始
+- 状态：已完成（2026-09-10）
+- 中途发现并解决的问题：动手前发现 `docs/adr/0069-embedded-agent-http-api-access.md` 明确写着
+  "`WebFetch` 加入允许工具，`WebSearch` 不加入"——按项目 ADR 冲突处理约定停下向用户确认，讲清楚了
+  WebSearch 的三个新增考量（服务端工具不经过 sandbox 网络策略、独立计费 $10/1000 次、结果回填有
+  prompt injection 面）后，用户确认维持"全局放开"的原计划，并要求写新 ADR 记录这次变更。
 - 产出：
-  - `server/agent_runtime/session_manager.py` `DEFAULT_ALLOWED_TOOLS` 加入 `WebSearch`
-  - `agent_runtime_profile/.claude/skills/video-workflow/SKILL.ad.md` 步骤 5 前插入美食类目调研分支
-  - `agent_runtime_profile/CLAUDE.ad.md` 补充规则说明
-- 验收标准：非美食类目行为不变；美食类目生成剧本前有调研动作的文档依据
-- 依赖：无（可与 B 并行，但按序做）
+  - `docs/adr/0076-embedded-agent-web-search-tool.md`：新 ADR，记录相对 ADR-0069 的变更理由与后果
+  - `server/agent_runtime/session_manager.py`：`DEFAULT_ALLOWED_TOOLS` 加入 `WebSearch`
+  - `agent_runtime_profile/.claude/skills/video-workflow/SKILL.ad.md` 步骤 5：生成剧本前，识别到
+    具体菜品/菜谱类内容时先用 WebSearch 查证真实工序，其余内容跳过
+  - `agent_runtime_profile/CLAUDE.ad.md`「剧本」段落同步规则说明
+- 验收标准（已核实）：
+  - `uv run python -m pytest tests/unit/server/agent_runtime/test_session_manager_project_scope.py`：9 passed ✅
+  - `uv run python -m pytest tests/unit/lib/test_video_workflow_prompt.py tests/integration/agent_runtime_profile/`：55 passed ✅
+  - `uv run python scripts/lint_agent_runtime_profile.py`：通过 ✅
+  - `uv run ruff check .`：通过 ✅
+  - `uv run python -m pytest -n 4 --dist loadfile`：12037 passed，无回归 ✅
+- 已知限制（记录）：WebSearch 权限是全局的，非美食场景是否触发完全靠 prompt 指令约束，没有工具级硬限制。
+- 依赖：无
 
 ## 单元 C：前端资产清单向导 UI
 

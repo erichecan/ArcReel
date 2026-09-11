@@ -40,7 +40,7 @@ Read 只补充创作输入与商品 soft gate 信息。每次动作完成后刷�
 4. **资产定义与资产图（必经，不可跳过）**：
    - `next_action.type == "confirm_ad_asset_plan"` 时：分析 `brief`/卖点里会在多个视频单元/分镜里反复出现的角色、场景、道具，逐条向用户确认是否需要登记；用户确认的条目经 `patch_project` 写入 `characters`/`scenes`/`props`，再 dispatch `generate-assets` 子智能体为它们出资产图。全部处理完（或用户确认这条极简短片确实不需要额外资产）后调用 `mcp__arcreel__confirm_ad_asset_plan({})`——真的不需要任何资产时传 `{"no_additional_assets": true}`；工具在没有登记任何资产且未传该参数时会拒绝，需要退回去补登记或补传参数。这一步不确认，计划不会推进到步骤 5。
    - `next_action.type == "generate_asset_sheets"` 时：对每个类型取 `artifacts.asset_sheets[type].missing_ids` 与 `requested_ids` 的交集作为该类型的 `names`，调用 `mcp__arcreel__generate_assets({"type": type, "names": [该类型 names]})`。商品 sheet 在商品资产页生成。
-5. **一键生成剧本**：调用 `mcp__arcreel__generate_episode_script({"episode": 1})`。广告不走 script_plan；分镜图生视频直接产出 `shots[]`，参考生视频直接产出自包含 `video_units[]`。总时长偏离 `target_duration` 时提醒用户，不阻塞保存。
+5. **一键生成剧本**：`brief`/卖点指向具体菜品、菜谱或有明确标准工序的烹饪内容时，先用 WebSearch 查证这道菜真实的标准制作流程（关键工序、是否需要预处理/过油炸/腌制等），把查到的工序要点带进生成，确保脚本 unit 覆盖完整工序链条、不缺关键步骤——不是任何 ad 内容都要搜索，只在识别到具体菜品/菜谱这类有客观标准工艺的场景触发，其余内容跳过这一步直接生成。调用 `mcp__arcreel__generate_episode_script({"episode": 1})`。广告不走 script_plan；分镜图生视频直接产出 `shots[]`，参考生视频直接产出自包含 `video_units[]`。总时长偏离 `target_duration` 时提醒用户，不阻塞保存。
 6. **sheet 过目（软门禁）**：商品有 `product_sheet` 时，请用户在首次分镜或参考生视频生成前确认它与真品一致；只有原图时直接继续。
 7. **编排与生成**：
 
