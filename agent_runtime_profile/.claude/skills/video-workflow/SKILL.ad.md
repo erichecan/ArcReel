@@ -23,6 +23,7 @@ Read 只补充创作输入与商品 soft gate 信息。每次动作完成后刷�
 
 - `next_action.type == "collect_project_input"` → 步骤 2
 - `next_action.type == "draft_selling_points"` → 步骤 3
+- `next_action.type == "confirm_ad_asset_plan"` → 步骤 4
 - `next_action.type == "generate_script"` → 步骤 5
 - `next_action.type == "generate_asset_sheets"` → 步骤 4
 - `next_action.type == "repair_video_units"` → 步骤 7 的视频单元修复
@@ -36,7 +37,9 @@ Read 只补充创作输入与商品 soft gate 信息。每次动作完成后刷�
 1. **确认项目状态**：按计划确认 `content_mode=ad` 与项目级 `generation_mode`；Read `project.json` 补充 `title`、`target_duration`、`brief` 与 `products`。生成模式创建后不可更改。
 2. **创作输入**：带货项目未登记商品或缺原图时，引导用户在 WebUI 上传；原图是保真锚点。用 `mcp__arcreel__patch_project` 写商品描述、品牌与 `brief`。通用短片不索要商品。
 3. **起草卖点**：商品的 `selling_points` 为空时，根据 brief、描述与原图起草，与用户确认后用 `patch_project` 写回。
-4. **资产定义与资产图**：定义角色、场景、道具后，对每个类型取 `artifacts.asset_sheets[type].missing_ids` 与 `requested_ids` 的交集作为该类型的 `names`，调用 `mcp__arcreel__generate_assets({"type": type, "names": [该类型 names]})`。商品 sheet 在商品资产页生成。
+4. **资产定义与资产图（必经，不可跳过）**：
+   - `next_action.type == "confirm_ad_asset_plan"` 时：分析 `brief`/卖点里会在多个视频单元/分镜里反复出现的角色、场景、道具，逐条向用户确认是否需要登记；用户确认的条目经 `patch_project` 写入 `characters`/`scenes`/`props`，再 dispatch `generate-assets` 子智能体为它们出资产图。全部处理完（或用户确认这条极简短片确实不需要额外资产）后调用 `mcp__arcreel__confirm_ad_asset_plan({})`——真的不需要任何资产时传 `{"no_additional_assets": true}`；工具在没有登记任何资产且未传该参数时会拒绝，需要退回去补登记或补传参数。这一步不确认，计划不会推进到步骤 5。
+   - `next_action.type == "generate_asset_sheets"` 时：对每个类型取 `artifacts.asset_sheets[type].missing_ids` 与 `requested_ids` 的交集作为该类型的 `names`，调用 `mcp__arcreel__generate_assets({"type": type, "names": [该类型 names]})`。商品 sheet 在商品资产页生成。
 5. **一键生成剧本**：调用 `mcp__arcreel__generate_episode_script({"episode": 1})`。广告不走 script_plan；分镜图生视频直接产出 `shots[]`，参考生视频直接产出自包含 `video_units[]`。总时长偏离 `target_duration` 时提醒用户，不阻塞保存。
 6. **sheet 过目（软门禁）**：商品有 `product_sheet` 时，请用户在首次分镜或参考生视频生成前确认它与真品一致；只有原图时直接继续。
 7. **编排与生成**：

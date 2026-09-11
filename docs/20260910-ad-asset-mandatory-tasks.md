@@ -52,12 +52,21 @@ A → B → D → C，一个周期一个单元，完成即验证、提交，再�
 
 ## 单元 B：agent 对话行为——创作前主动分析所需资产
 
-- 状态：待开始
+- 状态：已完成（2026-09-10）
 - 产出：
-  - `agent_runtime_profile/CLAUDE.ad.md:96` 资产设计段落改为强制
-  - `agent_runtime_profile/.claude/skills/video-workflow/SKILL.ad.md` 步骤 4 改为必经步骤，明确"未确认资产清单不得进入步骤 5"
-- 验收标准：文档改动自查一致，指令逻辑与单元 A 的 MCP 工具对齐
-- 依赖：单元 A（需要 MCP 工具已存在）
+  - `agent_runtime_profile/CLAUDE.ad.md`：「资产设计（可选）」改写为「资产设计（必经）」，加入具体判断逻辑——
+    分析 brief/卖点里会反复出现的角色/场景/道具，逐条确认；确实不需要时要求显式调用
+    `confirm_ad_asset_plan({"no_additional_assets": true})`
+  - `agent_runtime_profile/.claude/skills/video-workflow/SKILL.ad.md`：
+    - `next_action.type` 路由表加入 `confirm_ad_asset_plan → 步骤 4`
+    - 步骤 4 拆成两个分支（`confirm_ad_asset_plan` 必经确认 / `generate_asset_sheets` 出图），明确
+      "这一步不确认，计划不会推进到步骤 5"
+- 验收标准（已核实）：
+  - `uv run python -m pytest tests/unit/lib/test_video_workflow_prompt.py tests/integration/agent_runtime_profile/`：55 passed ✅
+  - `uv run python scripts/lint_agent_runtime_profile.py`：通过 ✅
+  - `uv run ruff check .`：通过 ✅
+  - `uv run python -m pytest -n 4 --dist loadfile`：12037 passed，无回归 ✅
+- 依赖：单元 A（MCP 工具已在单元 A 落地）
 
 ## 单元 D：美食脚本调研（仅食物类目默认开启）
 
