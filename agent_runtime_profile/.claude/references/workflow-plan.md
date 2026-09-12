@@ -79,7 +79,7 @@ ID 参数时，前者传入，后者必须**省略该参数**，不得把 `[]` �
 | `collect_project_input` | 引导用户在 Web 端补齐项目输入 |
 | `draft_selling_points` | 起草卖点后经 `mcp__arcreel__patch_project` 写回（ad） |
 | `analyze_assets` | dispatch `analyze-assets` 子智能体 |
-| `confirm_ad_asset_plan` | ad 专属：反复出现的角色/场景/道具先登记资产、`generate-assets` 出图，再 `mcp__arcreel__confirm_ad_asset_plan`；确实不需要额外资产时传 `no_additional_assets=true` |
+| `confirm_ad_asset_plan` | ad 专属：反复出现的角色/场景/道具先登记名字（`patch_project`，不出图），再 `mcp__arcreel__confirm_ad_asset_plan`；出图留到脚本生成后由 `generate_asset_sheets` 触发；确实不需要额外资产时传 `no_additional_assets=true` |
 | `reset_episode_planning` | `mcp__arcreel__reset_episode_planning`，按 `next_action.args` 传参 |
 | `plan_episodes` | `mcp__arcreel__plan_episodes` |
 | `prepare_script_plan` | dispatch `next_action.args.preprocessor` 指名的子智能体 |
